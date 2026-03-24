@@ -28,7 +28,11 @@ type GeneratedCareer = {
 };
 
 const difficulties = [
-  { value: "easy", label: "Fácil", hint: "Mais chance de clubes fortes (elites do mundo pesam mais)." },
+  {
+    value: "easy",
+    label: "Fácil",
+    hint: "Sorteio só entre os ~28% melhores elencos; gigantes e topo global têm peso bem maior.",
+  },
   { value: "medium", label: "Médio", hint: "Sorteio mais equilibrado entre todos os times." },
   { value: "hard", label: "Difícil", hint: "Mais chance de clubes com elenco mais fraco." },
   { value: "legendary", label: "Lendário", hint: "Forte viés para times menores; desafio máximo." },

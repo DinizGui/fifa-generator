@@ -40,6 +40,19 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function weightedPickByWeight<T>(items: T[], weights: number[]): T {
+  if (items.length === 0) throw new Error("weightedPickByWeight: lista vazia.");
+  if (items.length !== weights.length) throw new Error("weightedPickByWeight: tamanhos diferentes.");
+  const safe = weights.map((w) => Math.max(w, 1e-9));
+  const total = safe.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= safe[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
 export async function getRandomChallengeType() {
   const all = await prisma.challengeType.findMany();
   if (!all.length) {
@@ -79,24 +92,52 @@ export async function pickRandomTeamByDifficulty(difficulty: Difficulty): Promis
     s: strengthByTeam.get(team.id) ?? team.reputation,
   }));
 
+  const sorted = [...scored].sort((a, b) => b.s - a.s);
+  const nTeams = teams.length;
+
   const sVals = scored.map((x) => x.s);
   const minS = Math.min(...sVals);
   const maxS = Math.max(...sVals);
   const span = maxS - minS || 1;
 
-  const sorted = [...scored].sort((a, b) => b.s - a.s);
-  const eliteN = Math.max(3, Math.ceil(teams.length * 0.12));
+  const eliteN = Math.max(5, Math.ceil(nTeams * 0.12));
   const eliteIds = new Set(sorted.slice(0, eliteN).map((x) => x.team.id));
   const smallIds = new Set(sorted.slice(-eliteN).map((x) => x.team.id));
+
+  /** Top global por média de overall (gigantes / grandes ligas pesam mais no “fácil”). */
+  const topGlobalN = Math.max(12, Math.ceil(nTeams * 0.08));
+  const topGlobalIds = new Set(sorted.slice(0, topGlobalN).map((x) => x.team.id));
+
+  if (difficulty === "easy") {
+    /**
+     * Antes: pesos favoreciam elencos fortes, mas ~hundreds de clubes médios somavam massa enorme —
+     * times como Estoril saíam com frequência. Agora o sorteio é só entre os ~28% melhores elencos
+     * (mín. 40 clubes), com peso ~cúbico para o topo desse grupo + boost em elite global.
+     */
+    const poolSize = Math.max(40, Math.ceil(nTeams * 0.28));
+    const pool = sorted.slice(0, poolSize);
+    const poolMin = pool[pool.length - 1].s;
+    const poolMax = pool[0].s;
+    const poolSpan = poolMax - poolMin || 1;
+
+    const weights = pool.map((x) => {
+      const n = (x.s - poolMin) / poolSpan;
+      let w = 0.1 + Math.pow(n, 3.4) * 62;
+      if (eliteIds.has(x.team.id)) w *= 2.8;
+      if (topGlobalIds.has(x.team.id)) w *= 2.1;
+      return Math.max(w, 0.06);
+    });
+
+    return weightedPickByWeight(
+      pool.map((x) => x.team),
+      weights,
+    );
+  }
 
   const weights = scored.map(({ team, s }) => {
     const n = (s - minS) / span;
     let w = 1;
     switch (difficulty) {
-      case "easy":
-        w = 0.2 + Math.pow(n, 2.2) * 9;
-        if (eliteIds.has(team.id)) w *= 3;
-        break;
       case "medium":
         w = 0.55 + Math.sin(n * Math.PI) * 0.65;
         break;
@@ -111,17 +152,16 @@ export async function pickRandomTeamByDifficulty(difficulty: Difficulty): Promis
         /** Quase nunca elenco já pronto — evita "Legendary" em gigante europeu por acaso. */
         if (eliteIds.has(team.id)) w *= 0.06;
         break;
+      default:
+        w = 1;
     }
     return Math.max(w, 0.08);
   });
 
-  let total = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < teams.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return scored[i].team;
-  }
-  return scored[scored.length - 1].team;
+  return weightedPickByWeight(
+    scored.map((x) => x.team),
+    weights,
+  );
 }
 
 function computeBudget(team: Team, difficulty: Difficulty, challengeSlug: string) {
