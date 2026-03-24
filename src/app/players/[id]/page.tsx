@@ -8,6 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/** Foto e físico no schema Prisma; o client antigo por vezes não tipa estes campos até `prisma generate`. */
+type PlayerProfileMedia = {
+  imageUrl: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+};
+
 function formatEuro(n: number): string {
   if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `€${(n / 1_000).toFixed(0)}k`;
@@ -47,8 +54,9 @@ export default async function PlayerDashboardPage({
 
   if (!player) notFound();
 
-  const growth = player.potential - player.overall;
-  const img = player.imageUrl;
+  const p = player as typeof player & PlayerProfileMedia;
+  const growth = p.potential - p.overall;
+  const img = p.imageUrl;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
@@ -71,7 +79,7 @@ export default async function PlayerDashboardPage({
             {img ? (
               <Image
                 src={img}
-                alt={player.name}
+                alt={p.name}
                 fill
                 className="object-cover object-top"
                 sizes="(max-width: 1024px) 100vw, 280px"
@@ -87,10 +95,10 @@ export default async function PlayerDashboardPage({
           <CardHeader className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="font-heading text-[var(--fifa-accent)]">
-                OVR {player.overall}
+                OVR {p.overall}
               </Badge>
               <Badge variant="outline" className="border-white/15">
-                POT {player.potential}
+                POT {p.potential}
               </Badge>
               {growth !== 0 ? (
                 <Badge
@@ -104,8 +112,8 @@ export default async function PlayerDashboardPage({
                 </Badge>
               ) : null}
             </div>
-            <CardTitle className="font-heading text-2xl text-white sm:text-3xl">{player.name}</CardTitle>
-            <CardDescription className="text-base">{player.nationality}</CardDescription>
+            <CardTitle className="font-heading text-2xl text-white sm:text-3xl">{p.name}</CardTitle>
+            <CardDescription className="text-base">{p.nationality}</CardDescription>
           </CardHeader>
         </Card>
 
@@ -118,11 +126,11 @@ export default async function PlayerDashboardPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <p className="text-lg font-medium text-foreground">{player.team.name}</p>
-              {player.team.league ? (
-                <p className="text-muted-foreground">{player.team.league}</p>
+              <p className="text-lg font-medium text-foreground">{p.team.name}</p>
+              {p.team.league ? (
+                <p className="text-muted-foreground">{p.team.league}</p>
               ) : null}
-              <p className="text-muted-foreground">{player.team.country}</p>
+              <p className="text-muted-foreground">{p.team.country}</p>
             </CardContent>
           </Card>
 
@@ -135,16 +143,16 @@ export default async function PlayerDashboardPage({
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <Stat label="Posição" value={player.position} />
-                <Stat label="Idade" value={`${player.age} anos`} />
-                {player.heightCm != null ? (
-                  <Stat label="Altura" value={`${player.heightCm} cm`} />
+                <Stat label="Posição" value={p.position} />
+                <Stat label="Idade" value={`${p.age} anos`} />
+                {p.heightCm != null ? (
+                  <Stat label="Altura" value={`${p.heightCm} cm`} />
                 ) : null}
-                {player.weightKg != null ? (
-                  <Stat label="Peso" value={`${player.weightKg} kg`} />
+                {p.weightKg != null ? (
+                  <Stat label="Peso" value={`${p.weightKg} kg`} />
                 ) : null}
-                <Stat label="Valor" value={formatEuro(player.value)} accent />
-                <Stat label="Salário / sem." value={formatEuro(player.wage)} />
+                <Stat label="Valor" value={formatEuro(p.value)} accent />
+                <Stat label="Salário / sem." value={formatEuro(p.wage)} />
               </dl>
             </CardContent>
           </Card>
