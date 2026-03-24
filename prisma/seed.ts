@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { PRESET_CHALLENGE_INPUTS } from "../src/lib/challenge-pool/preset-challenges-data";
+import { presetToDbPayload } from "../src/lib/challenge-pool/preset-challenges";
 
 const prisma = new PrismaClient();
 
@@ -22,7 +24,30 @@ async function main() {
     });
   }
 
-  console.log("Seed: ChallengeType concluido. Times e jogadores vêm do CSV (npm run import:fifa23).");
+  let presetsUpserted = 0;
+  for (const preset of PRESET_CHALLENGE_INPUTS) {
+    const row = presetToDbPayload(preset);
+    await prisma.challenge.upsert({
+      where: { signature: row.signature },
+      create: row,
+      update: {
+        name: row.name,
+        difficulty: row.difficulty,
+        types: row.types,
+        narrative: row.narrative,
+        objectives: row.objectives,
+        restrictions: row.restrictions,
+        tactics: row.tactics,
+        teamId: null,
+        playerId: null,
+      },
+    });
+    presetsUpserted++;
+  }
+
+  console.log(
+    `Seed: ChallengeType + ${presetsUpserted} desafios catalogo (Challenge). Times e jogadores: npm run import:fifa23.`,
+  );
 }
 
 main()
