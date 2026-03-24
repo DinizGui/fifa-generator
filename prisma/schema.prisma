@@ -1,0 +1,226 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlayerStatus {
+  STARTER
+  RESERVE
+  LOANED
+  SOLD
+  FREE_AGENT
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  careers      Career[]
+}
+
+model ChallengeType {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique
+  name        String
+  description String
+  careers     Career[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Team {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  league        String?
+  country       String
+  logo          String?
+  reputation    Int            @default(60)
+  players       Player[]
+  careers       Career[]
+  careerPlayers CareerPlayer[]
+  challenges    Challenge[]
+  transfersFrom Transfer[]     @relation("TransferFromTeam")
+  transfersTo   Transfer[]     @relation("TransferToTeam")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([league])
+  @@index([reputation])
+}
+
+model Player {
+  id            Int            @id @default(autoincrement())
+  name          String
+  age           Int
+  position      String
+  overall       Int
+  potential     Int
+  nationality   String
+  value         Int            @default(0)
+  wage          Int            @default(0)
+  teamId        Int
+  team          Team           @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  careerPlayers CareerPlayer[]
+  challenges    Challenge[]
+  transfers     Transfer[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([name])
+  @@index([position])
+  @@index([overall])
+  @@index([age])
+  @@index([teamId])
+}
+
+/// Desafio procedural gerado (pool reutilizável). Referencia times/jogadores reais quando aplicável.
+model Challenge {
+  id           Int      @id @default(autoincrement())
+  name         String
+  difficulty   String
+  types        Json
+  narrative    String   @db.Text
+  objectives   Json
+  restrictions Json
+  tactics      Json
+  signature    String   @unique
+  teamId       Int?
+  playerId     Int?
+  team         Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  player       Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([difficulty])
+  @@index([teamId])
+  @@index([playerId])
+  @@index([createdAt])
+}
+
+model Career {
+  id                 Int                @id @default(autoincrement())
+  userId             Int
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  teamId             Int
+  team               Team               @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  challengeTypeId    Int?
+  challengeType      ChallengeType?     @relation(fields: [challengeTypeId], references: [id], onDelete: SetNull)
+  season             Int                @default(1)
+  budget             Int
+  difficulty         String
+  mainObjective      String
+  tacticalStyle      String?
+  formation          String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  players            CareerPlayer[]
+  transfers          Transfer[]
+  objectives         CareerObjective[]
+  restrictions       CareerRestriction[]
+  narrative          CareerNarrative?
+  tactic             Tactic?
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([challengeTypeId])
+}
+
+model CareerPlayer {
+  id            Int          @id @default(autoincrement())
+  careerId      Int
+  playerId      Int
+  teamId        Int?
+  overallAtual  Int
+  valorAtual    Int
+  salarioAtual  Int
+  status        PlayerStatus @default(RESERVE)
+  isTitular     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  career        Career       @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  player        Player       @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  team          Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([careerId, playerId])
+  @@index([careerId])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([status])
+}
+
+model Transfer {
+  id         Int      @id @default(autoincrement())
+  careerId   Int
+  playerId   Int
+  fromTeamId Int?
+  toTeamId   Int?
+  value      Int
+  date       DateTime
+  createdAt  DateTime @default(now())
+  career     Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  fromTeam   Team?    @relation("TransferFromTeam", fields: [fromTeamId], references: [id], onDelete: SetNull)
+  toTeam     Team?    @relation("TransferToTeam", fields: [toTeamId], references: [id], onDelete: SetNull)
+
+  @@index([careerId])
+  @@index([playerId])
+  @@index([date])
+}
+
+model Tactic {
+  id        Int      @id @default(autoincrement())
+  careerId  Int      @unique
+  formation String
+  style     String
+  width     Int
+  depth     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  career    Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+}
+
+model CareerObjective {
+  id          Int      @id @default(autoincrement())
+  careerId    Int
+  type        String
+  description String
+  targetValue String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  career      Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@index([careerId])
+  @@index([type])
+}
+
+model CareerRestriction {
+  id          Int      @id @default(autoincrement())
+  careerId    Int
+  description String
+  createdAt   DateTime @default(now())
+  career      Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@index([careerId])
+}
+
+model CareerNarrative {
+  id        Int      @id @default(autoincrement())
+  careerId  Int      @unique
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  career    Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+}
