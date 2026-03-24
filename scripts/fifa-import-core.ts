@@ -137,6 +137,36 @@ async function findPlayerIdBySofifaId(
   return rows[0]?.id ?? null;
 }
 
+/** INSERT com `sofifaId` — o Prisma Client gerado em alguns CI omite o campo em `PlayerCreateInput`. */
+async function insertPlayerWithSofifaIdRaw(
+  prisma: PrismaClient,
+  sofifaId: number,
+  data: PlayerImportPayload,
+): Promise<void> {
+  await prisma.$executeRaw`
+    INSERT INTO \`Player\` (
+      \`name\`, \`imageUrl\`, \`heightCm\`, \`weightKg\`, \`teamId\`, \`age\`, \`position\`,
+      \`overall\`, \`potential\`, \`nationality\`, \`value\`, \`wage\`, \`sofifaId\`, \`createdAt\`, \`updatedAt\`
+    ) VALUES (
+      ${data.name},
+      ${data.imageUrl},
+      ${data.heightCm},
+      ${data.weightKg},
+      ${data.teamId},
+      ${data.age},
+      ${data.position},
+      ${data.overall},
+      ${data.potential},
+      ${data.nationality},
+      ${data.value},
+      ${data.wage},
+      ${sofifaId},
+      NOW(),
+      NOW()
+    )
+  `;
+}
+
 async function upsertPlayerBySofifaId(
   prisma: PrismaClient,
   sofifaId: number,
@@ -148,7 +178,7 @@ async function upsertPlayerBySofifaId(
     return;
   }
   try {
-    await prisma.player.create({ data: { ...data, sofifaId } });
+    await insertPlayerWithSofifaIdRaw(prisma, sofifaId, data);
   } catch (e) {
     if (!isPrismaUniqueViolation(e)) throw e;
     const id = await findPlayerIdBySofifaId(prisma, sofifaId);
