@@ -124,32 +124,36 @@ type PlayerImportPayload = {
 };
 
 /**
- * Prisma não expõe `sofifaId` em `PlayerWhereUniqueInput` quando o campo é opcional (`Int? @unique`);
- * `upsert({ where: { sofifaId } })` falha no typecheck. Usamos findFirst + create/update (+ P2002).
+ * O cliente Prisma gerado (CI / versões antigas) por vezes não inclui `sofifaId` em `PlayerWhereInput`.
+ * Evitamos filtros tipados e usamos SQL parametrizado na mesma tabela.
  */
+async function findPlayerIdBySofifaId(
+  prisma: PrismaClient,
+  sofifaId: number,
+): Promise<number | null> {
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT id FROM Player WHERE sofifaId = ${sofifaId} LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
 async function upsertPlayerBySofifaId(
   prisma: PrismaClient,
   sofifaId: number,
   data: PlayerImportPayload,
 ) {
-  const existing = await prisma.player.findFirst({
-    where: { sofifaId },
-    select: { id: true },
-  });
-  if (existing) {
-    await prisma.player.update({ where: { id: existing.id }, data });
+  const existingId = await findPlayerIdBySofifaId(prisma, sofifaId);
+  if (existingId != null) {
+    await prisma.player.update({ where: { id: existingId }, data });
     return;
   }
   try {
     await prisma.player.create({ data: { ...data, sofifaId } });
   } catch (e) {
     if (!isPrismaUniqueViolation(e)) throw e;
-    const row = await prisma.player.findFirst({
-      where: { sofifaId },
-      select: { id: true },
-    });
-    if (!row) throw e;
-    await prisma.player.update({ where: { id: row.id }, data });
+    const id = await findPlayerIdBySofifaId(prisma, sofifaId);
+    if (id == null) throw e;
+    await prisma.player.update({ where: { id }, data });
   }
 }
 
