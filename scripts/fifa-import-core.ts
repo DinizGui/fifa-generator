@@ -108,6 +108,51 @@ function isPrismaUniqueViolation(e: unknown): boolean {
   );
 }
 
+type PlayerImportPayload = {
+  name: string;
+  imageUrl: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  teamId: number;
+  age: number;
+  position: string;
+  overall: number;
+  potential: number;
+  nationality: string;
+  value: number;
+  wage: number;
+};
+
+/**
+ * Prisma não expõe `sofifaId` em `PlayerWhereUniqueInput` quando o campo é opcional (`Int? @unique`);
+ * `upsert({ where: { sofifaId } })` falha no typecheck. Usamos findFirst + create/update (+ P2002).
+ */
+async function upsertPlayerBySofifaId(
+  prisma: PrismaClient,
+  sofifaId: number,
+  data: PlayerImportPayload,
+) {
+  const existing = await prisma.player.findFirst({
+    where: { sofifaId },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.player.update({ where: { id: existing.id }, data });
+    return;
+  }
+  try {
+    await prisma.player.create({ data: { ...data, sofifaId } });
+  } catch (e) {
+    if (!isPrismaUniqueViolation(e)) throw e;
+    const row = await prisma.player.findFirst({
+      where: { sofifaId },
+      select: { id: true },
+    });
+    if (!row) throw e;
+    await prisma.player.update({ where: { id: row.id }, data });
+  }
+}
+
 async function resolveOrCreateTeam(prisma: PrismaClient, t: TeamSeed) {
   let id = await findTeamIdByDbName(prisma, t.name);
   if (id == null) id = (await findTeamIdCaseInsensitive(prisma, t.name)) ?? null;
@@ -308,7 +353,7 @@ export async function importFifaPlayerRows(prisma: PrismaClient, rows: Record<st
         Number.isFinite(wRaw) && wRaw > 0 && wRaw < 200 ? Math.round(wRaw) : null;
 
       const sofifaId = resolveSofifaId(row);
-      const playerPayload = {
+      const playerPayload: PlayerImportPayload = {
         name: playerName,
         imageUrl,
         heightCm,
@@ -324,11 +369,7 @@ export async function importFifaPlayerRows(prisma: PrismaClient, rows: Record<st
       };
 
       if (sofifaId != null) {
-        await prisma.player.upsert({
-          where: { sofifaId },
-          create: { ...playerPayload, sofifaId },
-          update: playerPayload,
-        });
+        await upsertPlayerBySofifaId(prisma, sofifaId, playerPayload);
       } else {
         const existing = await prisma.player.findFirst({
           where: { name: playerName, teamId },
