@@ -1,10 +1,9 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { PRESET_CHALLENGE_INPUTS } from "../src/lib/challenge-pool/preset-challenges-data";
-import { presetToDbPayload } from "../src/lib/challenge-pool/preset-challenges";
 
 const prisma = new PrismaClient();
 
-async function main() {
+async function seedChallengeTypes() {
   const challenges = [
     { slug: "reconstruction", name: "Reconstrucao", description: "Remontar elenco e identidade do clube." },
     { slug: "road_to_glory", name: "Road to Glory", description: "Levar clube pequeno ao topo." },
@@ -23,31 +22,51 @@ async function main() {
       update: challenge,
     });
   }
+  console.log("Seed: ChallengeType OK.");
+}
 
-  let presetsUpserted = 0;
-  for (const preset of PRESET_CHALLENGE_INPUTS) {
-    const row = presetToDbPayload(preset);
-    await prisma.challenge.upsert({
-      where: { signature: row.signature },
-      create: row,
-      update: {
-        name: row.name,
-        difficulty: row.difficulty,
-        types: row.types,
-        narrative: row.narrative,
-        objectives: row.objectives,
-        restrictions: row.restrictions,
-        tactics: row.tactics,
-        teamId: null,
-        playerId: null,
-      },
-    });
-    presetsUpserted++;
+async function seedPresetChallenges() {
+  try {
+    const { PRESET_CHALLENGE_INPUTS } = await import("../src/lib/challenge-pool/preset-challenges-data");
+    const { presetToDbPayload } = await import("../src/lib/challenge-pool/preset-challenges");
+    let presetsUpserted = 0;
+    for (const preset of PRESET_CHALLENGE_INPUTS) {
+      const row = presetToDbPayload(preset);
+      await prisma.challenge.upsert({
+        where: { signature: row.signature },
+        create: row,
+        update: {
+          name: row.name,
+          difficulty: row.difficulty,
+          types: row.types,
+          narrative: row.narrative,
+          objectives: row.objectives,
+          restrictions: row.restrictions,
+          tactics: row.tactics,
+          teamId: null,
+          playerId: null,
+        },
+      });
+      presetsUpserted++;
+    }
+    console.log(`Seed: Challenge (catalogo) OK — ${presetsUpserted} presets.`);
+  } catch (e) {
+    console.warn(
+      "Seed: catalogo Challenge ignorado (tabela inexistente ou erro). Rode prisma db push. Detalhe:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
+async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL nao definida. Configure .env na raiz do projeto.");
   }
 
-  console.log(
-    `Seed: ChallengeType + ${presetsUpserted} desafios catalogo (Challenge). Times e jogadores: npm run import:fifa23.`,
-  );
+  await seedChallengeTypes();
+  await seedPresetChallenges();
+
+  console.log("Seed concluido. Elenco: npm run import");
 }
 
 main()
@@ -55,7 +74,7 @@ main()
     await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error(e);
+    console.error("Seed falhou:", e);
     await prisma.$disconnect();
     process.exit(1);
   });

@@ -1,33 +1,51 @@
 # Dataset FIFA 23
 
-Coloque o CSV dos jogadores em `data/`, por exemplo:
+Coloque o CSV na pasta `data/`:
 
-- `data/players.csv` (Kaggle com colunas `club_name`, `league_name`, etc.)
-- ou `data/Fifa 23 Players Data.csv` (export estilo Sofifa com `Club Name`, etc.)
+| Ficheiro | Descrição |
+|----------|-----------|
+| **`players.csv`** | Preferido (Kaggle / export próprio com `club_name`, `sofifa_id`, …) |
+| **`Fifa 23 Players Data.csv`** | Export estilo Sofifa (`Club Name`, `Image Link`, …) |
 
-O script detecta automaticamente um desses arquivos. Também pode informar o caminho:
+## Antes de importar (obrigatório)
+
+O MySQL tem de ter as tabelas criadas pelo Prisma:
 
 ```bash
-npm run import:fifa23 -- "data/Fifa 23 Players Data.csv"
+npx prisma db push
+npx prisma generate
 ```
 
-Ou variável de ambiente:
+Se saltares este passo, verás: **`The table Team does not exist`**.
+
+## Comandos
 
 ```bash
-set FIFA_CSV=data\players.csv
+# Recomendado (csv-parser + stream)
+npm run import
+
+# Legado (csv-parse em memória)
 npm run import:fifa23
+
+# Com ts-node (usa scripts/tsconfig.json CommonJS)
+npm run import:ts-node
+
+# Caminho manual
+npx tsx scripts/import.ts "C:/caminho/para/o.csv"
 ```
 
-## O que o import faz
+Variável opcional: `FIFA_CSV=caminho.csv`
 
-- **Times**: `club_name` / `Club Name` → nome único do time; **upsert por nome** (sem duplicar).
-- **Liga**: `league_name` / `League Name` / variantes → campo `league` no `Team` (pode ficar `null` se a coluna não existir no arquivo).
-- **Jogadores**: mapeamento compatível com Kaggle e com o CSV local; **associados ao `teamId`** correto após o upsert do clube.
-
-Depois do import:
+## Após importar
 
 ```bash
+npx prisma generate
 npm run prisma:seed
 ```
 
-(apenas tipos de desafio; elenco vem do CSV.)
+O **seed** só popula `ChallengeType` + catálogo `Challenge` (se a tabela existir). Elenco vem **só** do CSV.
+
+## Importação
+
+- **Team**: upsert por `name`; `country` (coluna de clube ou `Unknown`).
+- **Player**: upsert por **`sofifaId`** (coluna `sofifa_id` / `ID` ou URL em **Image Link**); fallback nome+clube sem ID na URL.

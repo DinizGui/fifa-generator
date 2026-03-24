@@ -1,5 +1,6 @@
 import { ChallengeType, Team } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { cloneTeamRosterToCareer, validateTeamPlayersCount } from "@/lib/career-squad-clone";
 
 type Difficulty = "easy" | "medium" | "hard" | "legendary";
 
@@ -373,22 +374,11 @@ export function generateInitialTactic(challengeType: ChallengeType) {
   };
 }
 
+/** Reidrata elenco completo (ex.: após migração). Corre dentro de uma transação. */
 export async function cloneTeamPlayersToCareer(careerId: number, teamId: number) {
-  const players = await prisma.player.findMany({ where: { teamId } });
-  if (!players.length) return;
-
-  await prisma.careerPlayer.createMany({
-    data: players.map((p, idx) => ({
-      careerId,
-      playerId: p.id,
-      teamId,
-      overallAtual: p.overall,
-      valorAtual: p.value,
-      salarioAtual: p.wage,
-      status: idx < 11 ? "STARTER" : "RESERVE",
-      isTitular: idx < 11,
-    })),
-    skipDuplicates: true,
+  await prisma.$transaction(async (tx) => {
+    await validateTeamPlayersCount(tx, teamId);
+    await cloneTeamRosterToCareer(tx, careerId, teamId, { log: true });
   });
 }
 
@@ -457,22 +447,8 @@ export async function generateCareerChallenge(params: GeneratorParams) {
       },
     });
 
-    const players = await tx.player.findMany({ where: { teamId: selectedTeam.id } });
-    if (players.length) {
-      await tx.careerPlayer.createMany({
-        data: players.map((p, idx) => ({
-          careerId: created.id,
-          playerId: p.id,
-          teamId: selectedTeam.id,
-          overallAtual: p.overall,
-          valorAtual: p.value,
-          salarioAtual: p.wage,
-          status: idx < 11 ? "STARTER" : "RESERVE",
-          isTitular: idx < 11,
-        })),
-        skipDuplicates: true,
-      });
-    }
+    await validateTeamPlayersCount(tx, selectedTeam.id);
+    await cloneTeamRosterToCareer(tx, created.id, selectedTeam.id, { log: true });
 
     return created;
   });

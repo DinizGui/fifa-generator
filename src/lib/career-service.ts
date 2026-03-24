@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cloneTeamRosterToCareer, validateTeamPlayersCount } from "@/lib/career-squad-clone";
 
 type GenerateCareerInput = {
   userId: number;
@@ -30,21 +31,8 @@ export async function generateCareer(input: GenerateCareerInput) {
       },
     });
 
-    const players = await tx.player.findMany({ where: { teamId: input.teamId } });
-    if (players.length) {
-      await tx.careerPlayer.createMany({
-        data: players.map((player, index) => ({
-          careerId: created.id,
-          playerId: player.id,
-          teamId: input.teamId,
-          overallAtual: player.overall,
-          valorAtual: player.value,
-          salarioAtual: player.wage,
-          status: index < 11 ? "STARTER" : "RESERVE",
-          isTitular: index < 11,
-        })),
-      });
-    }
+    await validateTeamPlayersCount(tx, input.teamId);
+    await cloneTeamRosterToCareer(tx, created.id, input.teamId, { log: true });
 
     await tx.tactic.create({
       data: {

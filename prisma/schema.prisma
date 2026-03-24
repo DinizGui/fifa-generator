@@ -62,7 +62,13 @@ model Team {
 
 model Player {
   id            Int            @id @default(autoincrement())
+  /** ID Sofifa derivado da URL da imagem no CSV — evita colapsar vários jogadores no mesmo registo. */
+  sofifaId      Int?           @unique
   name          String
+  /** URL da face no Sofifa (ex.: cdn.sofifa.net). */
+  imageUrl      String?        @db.VarChar(512)
+  heightCm      Int?
+  weightKg      Int?
   age           Int
   position      String
   overall       Int

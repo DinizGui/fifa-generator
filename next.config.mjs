@@ -22,6 +22,16 @@ const projectRoot = getProjectRoot();
 const nextConfig = {
   outputFileTracingRoot: projectRoot,
 
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.sofifa.net",
+        pathname: "/**",
+      },
+    ],
+  },
+
   turbopack: {
     root: projectRoot,
     resolveAlias: {

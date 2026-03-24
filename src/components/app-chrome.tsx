@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, Sparkles } from "lucide-react";
+import { LayoutDashboard, Sparkles, Users } from "lucide-react";
 import { getSessionPayload } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,11 @@ export async function AppChrome({ children }: { children: React.ReactNode }) {
                 label="Carreiras"
               />
               <ButtonStrip
+                href="/players"
+                icon={<Users className="size-3.5" />}
+                label="Jogadores"
+              />
+              <ButtonStrip
                 href="/career/generate"
                 icon={<Sparkles className="size-3.5" />}
                 label="Gerar"
@@ -58,6 +63,7 @@ export async function AppChrome({ children }: { children: React.ReactNode }) {
             </nav>
           ) : (
             <nav className="flex items-center gap-2">
+              <ButtonStrip href="/players" icon={<Users className="size-3.5" />} label="Jogadores" />
               <Link
                 href="/login"
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10 sm:text-sm"
